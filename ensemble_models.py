@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import HistGradientBoostingClassifier
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
 from sklearn.metrics import (
@@ -24,7 +24,6 @@ def run_ensemble_experiment(data: EnsembleInput) -> EnsembleResult:
     HistGradientBoosting, Voting/Stacking или полносвязная MLP. Не используйте
     test_target при обучении модели или подборе её параметров.
     """
-    # Используем random_seed из контракта
     seed = data.random_seed
 
     X_train = data.train_features
@@ -32,7 +31,6 @@ def run_ensemble_experiment(data: EnsembleInput) -> EnsembleResult:
     y_train = data.train_target
     y_test = data.test_target
 
-    # Приводим к numpy массивам (на случай если пришли pandas DataFrame)
     if hasattr(X_train, "values"):
         X_train = X_train.values
     if hasattr(X_test, "values"):
@@ -42,28 +40,23 @@ def run_ensemble_experiment(data: EnsembleInput) -> EnsembleResult:
     if hasattr(y_test, "values"):
         y_test = y_test.values
 
-    # МОДЕЛЬ: HistGradientBoostingClassifier
     model = Pipeline([
         ("scaler", StandardScaler()),
-        ("classifier", HistGradientBoostingClassifier(
-            max_iter=300,
-            max_depth=6,
-            learning_rate=0.05,
-            min_samples_leaf=20,
-            l2_regularization=0.1,
-            max_bins=255,
+        ("classifier", RandomForestClassifier(
+            n_estimators=200,
+            max_depth=8,
+            min_samples_leaf=5,
+            max_features="sqrt",
             random_state=seed,
+            n_jobs=-1,
         )),
     ])
 
-    # Обучение ТОЛЬКО на train (test_target не используется!)
     model.fit(X_train, y_train)
-
-    # Предсказания на test
+    
     y_proba = model.predict_proba(X_test)[:, 1]
     y_pred = model.predict(X_test)
 
-    # Метрики
     roc_auc = float(roc_auc_score(y_test, y_proba))
     accuracy = float(accuracy_score(y_test, y_pred))
     precision = float(precision_score(y_test, y_pred, zero_division=0))
@@ -71,7 +64,7 @@ def run_ensemble_experiment(data: EnsembleInput) -> EnsembleResult:
     f1 = float(f1_score(y_test, y_pred, zero_division=0))
 
     return EnsembleResult(
-        model_name="HistGradientBoostingClassifier",
+        model_name="RandomForestClassifier",
         probabilities=y_proba,
         predictions=y_pred,
         roc_auc=roc_auc,
